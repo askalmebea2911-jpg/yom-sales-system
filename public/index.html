@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ዮም ሽያጭ ማኔጅመንት</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Segoe UI', Arial, sans-serif;background:linear-gradient(135deg,#1e3c72 0%,#2a5298 100%);min-height:100vh}
+        .login-container{display:flex;justify-content:center;align-items:center;min-height:100vh}
+        .login-box{background:white;padding:40px;border-radius:15px;width:380px;box-shadow:0 10px 25px rgba(0,0,0,0.2)}
+        .login-box h2{text-align:center;margin-bottom:30px;color:#1e3c72}
+        .login-box input{width:100%;padding:14px;margin:10px 0;border:1px solid #ddd;border-radius:8px;font-size:16px}
+        .login-box button{width:100%;padding:14px;background:#1e3c72;color:white;border:none;border-radius:8px;font-size:18px;cursor:pointer;font-weight:bold}
+        .login-box button:hover{background:#2a5298}
+        .dashboard{display:none}
+        .top-bar{background:white;padding:15px 25px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;box-shadow:0 2px 5px rgba(0,0,0,0.1)}
+        .top-bar h1{font-size:24px;color:#1e3c72}
+        .user-info{display:flex;gap:15px;align-items:center}
+        .logout-btn{background:#e53e3e;color:white;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;font-weight:bold}
+        .logout-btn:hover{background:#c53030}
+        .nav-menu{background:#2d3748;padding:12px 20px;display:flex;gap:8px;flex-wrap:wrap}
+        .nav-btn{background:none;color:#e2e8f0;border:none;padding:10px 18px;cursor:pointer;border-radius:6px;font-size:16px;transition:all 0.2s}
+        .nav-btn:hover{background:#4a5568;color:white}
+        .nav-btn.active{background:#3182ce;color:white}
+        .content{padding:25px}
+        .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;margin-bottom:25px}
+        .stat-card{background:white;padding:20px;border-radius:12px;box-shadow:0 4px 6px rgba(0,0,0,0.1)}
+        .stat-card h3{color:#4a5568;margin-bottom:10px;font-size:16px}
+        .stat-card .value{font-size:32px;font-weight:bold;color:#1e3c72}
+        .data-table{background:white;border-radius:12px;padding:20px;box-shadow:0 4px 6px rgba(0,0,0,0.1);overflow-x:auto}
+        table{width:100%;border-collapse:collapse}
+        th,td{padding:14px 12px;text-align:left;border-bottom:1px solid #e2e8f0}
+        th{background:#edf2f7;font-weight:bold;color:#2d3748}
+        .form-container{background:white;padding:25px;border-radius:12px;margin-bottom:25px;box-shadow:0 4px 6px rgba(0,0,0,0.1)}
+        .form-group{margin-bottom:18px}
+        .form-group label{display:block;margin-bottom:6px;font-weight:bold;color:#2d3748}
+        .form-group input,.form-group select{width:100%;padding:12px;border:1px solid #cbd5e0;border-radius:6px;font-size:15px}
+        .btn-primary{background:#1e3c72;color:white;padding:12px 24px;border:none;border-radius:6px;cursor:pointer;font-size:16px;font-weight:bold}
+        .btn-primary:hover{background:#2a5298}
+        .btn-danger{background:#e53e3e;color:white;padding:6px 12px;border:none;border-radius:4px;cursor:pointer}
+        .btn-danger:hover{background:#c53030}
+        .btn-success{background:#38a169;color:white;padding:6px 12px;border:none;border-radius:4px;cursor:pointer}
+        .btn-success:hover{background:#2f855a}
+        .btn-warning{background:#d69e2e;color:white;padding:6px 12px;border:none;border-radius:4px;cursor:pointer}
+        .btn-warning:hover{background:#b7791f}
+        .error{color:#e53e3e;text-align:center;margin-top:15px}
+        .badge{padding:4px 10px;border-radius:20px;font-size:13px;font-weight:bold}
+        .badge-pending{background:#fefcbf;color:#975a16}
+        .badge-approved{background:#c6f6d5;color:#22543d}
+        .badge-rejected{background:#fed7d7;color:#9b2c2c}
+        .badge-paid{background:#c6f6d5;color:#22543d}
+        .action-buttons{display:flex;gap:5px}
+        @media (max-width:768px){.stats-grid{grid-template-columns:repeat(2,1fr)}.top-bar{flex-direction:column;gap:10px}}
+    </style>
+</head>
+<body>
+    <div id="loginPage" class="login-container">
+        <div class="login-box">
+            <h2>🌾 ዮም ሽያጭ ማኔጅመንት</h2>
+            <input type="text" id="username" placeholder="የተጠቃሚ ስም" autocomplete="off">
+            <input type="password" id="password" placeholder="ይለፍ ቃል">
+            <button onclick="login()">ግባ</button>
+            <div id="loginError" class="error"></div>
+        </div>
+    </div>
+    
+    <div id="dashboard" class="dashboard">
+        <div class="top-bar">
+            <h1>🌾 ዮም ሽያጭ ማኔጅመንት</h1>
+            <div class="user-info">
+                <span id="userName"></span>
+                <button class="logout-btn" onclick="logout()">ውጣ</button>
+            </div>
+        </div>
+        <div class="nav-menu" id="navMenu"></div>
+        <div class="content" id="content"></div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        
+        async function fetchAPI(url, options = {}) {
+            try {
+                const res = await fetch(url, {
+                    ...options,
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                return res;
+            } catch(e) {
+                console.error('API Error:', e);
+                return { ok: false, status: 500 };
+            }
+        }
+        
+        async function checkAuth() {
+            try {
+                const res = await fetchAPI('/api/me');
+                if (res.ok) {
+                    currentUser = await res.json();
+                    document.getElementById('userName').innerText = currentUser.full_name;
+                    document.getElementById('loginPage').style.display = 'none';
+                    document.getElementById('dashboard').style.display = 'block';
+                    loadMenu();
+                    showPage('dashboard');
+                }
+            } catch(e) {}
+        }
+        
+        function loadMenu() {
+            const navMenu = document.getElementById('navMenu');
+            let buttons = '';
+            
+            buttons += '<button class="nav-btn" onclick="showPage(\'dashboard\')">📊 ዳሽቦርድ</button>';
+            buttons += '<button class="nav-btn" onclick="showPage(\'customers\')">👥 ደንበኞች</button>';
+            buttons += '<button class="nav-btn" onclick="showPage(\'products\')">📦 ምርቶች</button>';
+            
+            if (currentUser.role === 'admin') {
+                buttons += '<button class="nav-btn" onclick="showPage(\'users\')">👨‍💼 ሰራተኞች</button>';
+                buttons += '<button class="nav-btn" onclick="showPage(\'vehicles\')">🚛 መኪኖች</button>';
+                buttons += '<button class="nav-btn" onclick="showPage(\'discounts\')">🏷️ ቅናሾች</button>';
+                buttons += '<button class="nav-btn" onclick="showPage(\'reports\')">📈 ሪፖርቶች</button>';
+            }
+            
+            if (currentUser.role === 'admin' || currentUser.role === 'sales') {
+                buttons += '<button class="nav-btn" onclick="showPage(\'sales\')">💰 ሽያጭ</button>';
+            }
+            
+            if (currentUser.role === 'admin' || currentUser.role === 'warehouse') {
+                buttons += '<button class="nav-btn" onclick="showPage(\'stock\')">📋 ክምችት ዝውውር</button>';
+                buttons += '<button class="nav-btn" onclick="showPage(\'returns\')">🔄 ተመላሾች</button>';
+                buttons += '<button class="nav-btn" onclick="showPage(\'fuel\')">⛽ ነዳጅ</button>';
+            }
+            
+            if (currentUser.role === 'admin' || currentUser.role === 'accountant') {
+                buttons += '<button class="nav-btn" onclick="showPage(\'expenses\')">💸 ወጪዎች</button>';
+                buttons += '<button class="nav-btn" onclick="showPage(\'payments\')">✅ ክፍያ አረጋግጥ</button>';
+                buttons += '<button class="nav-btn" onclick="showPage(\'edit-requests\')">✏️ ማረሚያ ጥያቄዎች</button>';
+            }
+            
+            navMenu.innerHTML = buttons;
+        }
+        
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            if (!username || !password) {
+                document.getElementById('loginError').innerText = 'ስም እና ይለፍ ቃል ያስገቡ';
+                return;
+            }
+            const res = await fetchAPI('/api/login', {
+                method: 'POST',
+                body: JSON.stringify({ username, password })
+            });
+            if (res.ok) {
+                location.reload();
+            } else {
+                const err = await res.json();
+                document.getElementById('loginError').innerText = err.error || 'መግባት አልተሳካም';
+            }
+        }
+        
+        async function logout() {
+            await fetchAPI('/api/logout', { method: 'POST' });
+            location.reload();
+        }
+        
+        async function showPage(page) {
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            if(event && event.target) event.target.classList.add('active');
+            
+            const content = document.getElementById('content');
+            content.innerHTML = '<div style="text-align:center;padding:50px;color:white">በመጫን ላይ...</div>';
+            
+            try {
+                if(page === 'dashboard') await loadDashboard();
+                else if(page === 'customers') await loadCustomers();
+                else if(page === 'products') await loadProducts();
+                else if(page === 'sales') await loadSales();
+                else if(page === 'users') await loadUsers();
+                else if(page === 'vehicles') await loadVehicles();
+                else if(page === 'stock') await loadStockMovements();
+                else if(page === 'returns') await loadReturns();
+                else if(page === 'fuel') await loadFuelLogs();
+                else if(page === 'expenses') await loadExpenses();
+                else if(page === 'payments') await loadPayments();
+                else if(page === 'edit-requests') await loadEditRequests();
+                else if(page === 'discounts') await loadDiscounts();
+                else if(page === 'reports') await loadReports();
+            } catch(e) {
+                content.innerHTML = '<div class="form-container" style="color:red">ገጹን ማሳየት አልተቻለም።</div>';
+            }
+        }
+        
+        async function loadDashboard() {
+            const res = await fetchAPI('/api/dashboard');
+            const data = await res.json();
+            document.getElementById('content').innerHTML = `
+                <div class="stats-grid">
+                    <div class="stat-card"><h3>📅 የዛሬ ሽያጭ</h3><div class="value">${(data.todaySales || 0).toLocaleString()} ብር</div></div>
+                    <div class="stat-card"><h3>👥 ደንበኞች</h3><div class="value">${data.totalCustomers || 0}</div></div>
+                    <div class="stat-card"><h3>📦 ምርቶች</h3><div class="value">${data.totalProducts || 0}</div></div>
+                    <div class="stat-card"><h3>🔄 በመጠባበቅ ላይ ያሉ መላሾች</h3><div class="value">${data.pendingReturns || 0}</div></div>
+                    <div class="stat-card"><h3>✏️ በመጠባበቅ ላይ ያሉ ማረሚያዎች</h3><div class="value">${data.pendingEdits || 0}</div></div>
+                </div>
+                <div class="data-table"><h3>📋 የቅርብ ጊዜ ሽያጮች</h3>
+                <table><thead><tr><th>ደረሰኝ ቁጥር</th><th>ደንበኛ</th><th>ጠቅላላ</th><th>ቀን</th><th>ሁኔታ</th></tr></thead>
+                <tbody>${(data.recentSales || []).map(s => `
+                    <tr>
+                        <td>${s.invoice_number}</td>
+                        <td>${s.customer_name || 'የገንዘብ ግዢ'}</td>
+                        <td>${(s.total || 0).toLocaleString()} ብር</td>
+                        <td>${new Date(s.sale_date).toLocaleDateString('en-CA')}</td>
+                        <td><span class="badge badge-${s.status === 'paid' ? 'approved' : 'pending'}">${s.status === 'paid' ? 'ተከፍሏል' : 'ክፍያ ይጠበቃል'}</span></td>
+                    </tr>
+                `).join('')}</tbody></table></div>
+            `;
+        }
+        
+        async function loadCustomers() {
+            const res = await fetchAPI('/api/customers');
+            const customers = await res.json();
+            document.getElementById('content').innerHTML = `
+                <div class="form-container"><h3>➕ አዲስ ደንበኛ</h3>
+                    <div class="form-group"><label>ሙሉ ስም</label><input type="text" id="custName" placeholder="ሙሉ ስም"></div>
+                    <div class="form-group"><label>ስልክ ቁጥር</label><input type="text" id="custPhone" placeholder="ስልክ"></div>
+                    <div class="form-group"><label>አድራሻ</label><input type="text" id="custAddress" placeholder="አድራሻ"></div>
+                    <button class="btn-primary" onclick="addCustomer()">ደንበኛ አስገባ</button>
+                </div>
+                <div class="data-table"><h3>📋 የደንበኞች ዝርዝር</h3>
+                <table><thead><tr><th>ስም</th><th>ስልክ</th><th>አድራሻ</th><th>ድርጊት</th></tr></thead>
+                <tbody>${customers.map(c => `
+                    <tr>
+                        <td>${c.name}</td>
+                        <td>${c.phone || '-'}</td>
+                        <td>${c.address || '-'}</td>
+                        <td><button class="btn-danger" onclick="deleteCustomer(${c.id})">ሰርዝ</button></td>
+                    </tr>
+                `).join('')}</tbody></table></div>
+            `;
+        }
+        
+        async function addCustomer() {
+            const name = document.getElementById('custName').value;
+            if(!name) return alert('ስም ያስገቡ');
+            await fetchAPI('/api/customers', {
+                method: 'POST',
+                body: JSON.stringify({ name, phone: document.getElementById('custPhone').value, address: document.getElementById('custAddress').value })
+            });
+            loadCustomers();
+        }
+        
+        async function deleteCustomer(id) {
+            if(confirm('እርግጠኛ ነዎት?')) { 
+                await fetchAPI(`/api/customers/${id}`, { method: 'DELETE' }); 
+                loadCustomers(); 
+            }
+        }
+        
+        async function loadProducts() {
+            const res = await fetchAPI('/api/products');
+            const products = await res.json();
+            document.getElementById('content').innerHTML = `
+                <div class="form-container"><h3>➕ አዲስ ምርት</h3>
+                    <div class="form-group"><label>የምርት ስም</label><input type="text" id="prodName"></div>
+                    <div class="form-group"><label>የሽያጭ ዋጋ (ብር)</label><input type="number" id="prodPrice"></div>
+                    <button class="btn-primary" onclick="addProduct()">ምርት አስገባ</button>
+                </div>
+                <div class="data-table"><h3>📦 የምርቶች ዝርዝር</h3>
+                <table><thead><tr><th>ስም</th><th>ዋጋ</th><th>አሁን ያለ ክምችት</th><th>ድርጊት</th></tr></thead>
+                <tbody>${products.map(p => `
+                    <tr>
+                        <td>${p.name}</td>
+                        <td>${p.selling_price} ብር</td>
+                        <td style="color:${p.current_stock <= 0 ? 'red' : 'green'}">${p.current_stock}</td>
+                        <td class="action-buttons">
+                            <button class="btn-warning" onclick="editProduct(${p.id})">አርትዕ ዋጋ</button>
+                            <button class="btn-danger" onclick="deleteProduct(${p.id})">ሰርዝ</button>
+                        </td>
+                    </tr>
+                `).join('')}</tbody></table></div>
+            `;
+        }
+        
+        async function addProduct() {
+            const name = document.getElementById('prodName').value;
+            const price = document.getElementById('prodPrice').value;
+            if(!name || !price) return alert('ስም እና ዋጋ ያስገቡ');
+            await fetchAPI('/api/products', {
+                method: 'POST',
+                body: JSON.stringify({ name, selling_price: parseFloat(price) })
+            });
+            loadProducts();
+        }
+        
+        async function editProduct(id) {
+            const newPrice = prompt('አዲሱን የሽያጭ ዋጋ ያስገቡ (በቁጥር)');
+            if(newPrice && !isNaN(newPrice)) {
+                await fetchAPI(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify({ selling_price: parseFloat(newPrice) }) });
+                loadProducts();
+            }
+        }
+        
+        async function deleteProduct(id) {
+            if(confirm('እርግጠኛ ነዎት? ይህ ምርት ከአሁን በኋላ አይታይም።')) { 
+                await fetchAPI(`/api/products/${id}`, { method: 'DELETE' }); 
+                loadProducts(); 
+            }
+        }
+        
+        async function loadSales() {
+            const products = await fetchAPI('/api/products').then(r=>r.json());
+            const customers = await fetchAPI('/api/customers').then(r=>r.json());
+            const sales = await fetchAPI('/api/sales').then(r=>r.json());
+            const discounts = await fetchAPI('/api/discounts').then(r=>r.json());
+            
+            document.getElementById('content').innerHTML = `
+                <div class="form-container"><h3>➕ አዲስ ሽያጭ</h3>
+                    <div class="form-group"><label>ደንበኛ</label>
+                        <select id="saleCustomer"><option value="">-- የገንዘብ ግዢ (ካልታወቀ) --</option>${customers.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}</select>
+                    </div>
+                    <div id="saleItems"><div class="sale-item" style="display:flex; gap:10px; margin-bottom:15px; align-items:center;">
+                        <select class="product-select" style="flex:2" onchange="updateItemTotal(this)"><option value="">-- ምርት ምረጥ --</option>${products.map(p => `<option value="${p.id}" data-price="${p.selling_price}" data-stock="${p.current_stock}">${p.name} - ${p.selling_price} ብር (በክምችት: ${p.current_stock})</option>`).join('')}</select>
+                        <input type="number" class="quantity-input" placeholder="ብዛት" style="flex:1" onchange="updateItemTotal(this)" value="1" min="1">
+                        <span class="item-total" style="flex:0.5; font-weight:bold;">0 ብር</span>
+                        <button onclick="removeSaleItem(this)" style="background:#e53e3e;color:white;border:none;padding:8px 12px;border-radius:4px">❌</button>
+                    </div></div>
+                    <button class="btn-success" onclick="addSaleItemRow()" style="margin-bottom:20px">+ ሌላ ምርት ጨምር</button>
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:#edf2f7; padding:15px; border-radius:8px; margin-bottom:15px;">
+                        <span style="font-size:18px; font-weight:bold;">ጠቅላላ ድምር፡</span>
+                        <span id="grandTotal" style="font-size:24px; font-weight:bold; color:#1e3c72;">0 ብር</span>
+                    </div>
+                    <button class="btn-primary" onclick="createSale()">ሽያጩን አስመዝግብ</button>
+                    <p style="margin-top:10px; color:#e53e3e; font-size:14px;">⚠️ ማስታወሻ፡ ሽያጩ ከተመዘገበ በኋላ ለማረም የአስተዳዳሪ እና የሂሳብ ሰራተኛ ፈቃድ ያስፈልጋል።</p>
+                </div>
+                <div class="data-table"><h3>💰 የሽያጭ ታሪክ</h3>
+                <table><thead><tr><th>ደረሰኝ ቁጥር</th><th>ደንበኛ</th><th>ጠቅላላ</th><th>ቀን</th><th>ሁኔታ</th><th>ድርጊት</th></tr></thead>
+                <tbody>${sales.map(s => `
+                    <tr>
+                        <td>${s.invoice_number}</td>
+                        <td>${s.customer_name || 'የገንዘብ ግዢ'}</td>
+                        <td>${(s.total || 0).toLocaleString()} ብር</td>
+                        <td>${new Date(s.sale_date).toLocaleDateString('en-CA')}</td>
+                        <td><span class="badge badge-${s.status === 'paid' ? 'approved' : 'pending'}">${s.status === 'paid' ? 'ተከፍሏል' : 'ክፍያ ይጠበቃል'}</span></td>
+                        <td><button class="btn-warning" onclick="requestEdit(${s.id}, ${s.total})">ማረም ጠይቅ</button></td>
+                    </tr>
+                `).join('')}</tbody></table></div>
+            `;
+            
+            window.updateItemTotal = function(el) {
+                const row = el.closest('.sale-item');
+                const select = row.querySelector('.product-select');
+                const qtyInput = row.querySelector('.quantity-input');
+                const totalSpan = row.querySelector('.item-total');
+                
+                const option = select.options[select.selectedIndex];
+                const price = parseFloat(option.dataset.price) || 0;
+                const qty = parseFloat(qtyInput.value) || 0;
+                const stock = parseFloat(option.dataset.stock) || 0;
+                
+                if(qty > stock) {
+                    alert('ይቅርታ! ያለው ክምችት ' + stock + ' ብቻ ነው።');
+                    qtyInput.value = stock;
+                }
+                
+                totalSpan.innerText = (price * qty).toLocaleString() + ' ብር';
+                updateGrandTotal();
+            };
+            
+            window.updateGrandTotal = function() {
+                let total = 0;
+                document.querySelectorAll('.sale-item').forEach(row => {
+                    const select = row.querySelector('.product-select');
+                    const qtyInput = row.querySelector('.quantity-input');
+                    const option = select.options[select.selectedIndex];
+                    if(option && option.dataset.price) {
+                        total += parseFloat(option.dataset.price) * (parseFloat(qtyInput.value) || 0);
+                    }
+                });
+                document.getElementById('grandTotal').innerText = total.toLocaleString() + ' ብር';
+            };
+        }
+        
+        function addSaleItemRow() {
+            const container = document.getElementById('saleItems');
+            const firstRow = document.querySelector('.sale-item');
+            const newRow = firstRow.cloneNode(true);
+            newRow.querySelector('.product-select').value = '';
+            newRow.querySelector('.quantity-input').value = '1';
+            newRow.querySelector('.item-total').innerText = '0 ብር';
+            container.appendChild(newRow);
+        }
+        
+        function removeSaleItem(btn) {
+            if (document.querySelectorAll('.sale-item').length > 1) {
+                btn.closest('.sale-item').remove();
+                updateGrandTotal();
+            }
+        }
+        
+        async function createSale() {
+            const items = [];
+            for (let row of document.querySelectorAll('.sale-item')) {
+                const productId = row.querySelector('.product-select').value;
+                const quantity = row.querySelector('.quantity-input').value;
+                if (productId && quantity && quantity > 0) {
+                    items.push({ product_id: parseInt(productId), quantity: parseFloat(quantity) });
+                }
+            }
+            if (items.length === 0) return alert('ቢያንስ አንድ ምርት ይምረጡ');
+            
+            const res = await fetchAPI('/api/sales', {
+                method: 'POST',
+                body: JSON.stringify({ customer_id: document.getElementById('saleCustomer').value || null, items })
+            });
+            if (res.ok) { 
+                const data = await res.json();
+                alert('ሽያጩ በተሳካ ሁኔታ ተመዝግቧል! ደረሰኝ ቁጥር፡ ' + data.invoice_number); 
+                showPage('sales'); 
+            }
+            else { const err = await res.json(); alert(err.error); }
+        }
+        
+        async function requestEdit(saleId, currentTotal) {
+            const reason = prompt('ለምን ማረም ይፈልጋሉ? እባክዎ ምክንያቱን ያስገቡ፡');
+            if(!reason) return;
+            
+            const newTotal = prompt('አዲሱን ትክክለኛ ጠቅላላ ዋጋ ያስገቡ (የአሁኑ፡ ' + currentTotal + ' ብር)፡');
+            if(!newTotal || isNaN(newTotal)) return;
+            
+            const res = await fetchAPI('/api/edit-requests', {
+                method: 'POST',
+                body: JSON.stringify({ sale_id: saleId, request_reason: reason, new_total: parseFloat(newTotal) })
+            });
+            if(res.ok) {
+                alert('የማረሚያ ጥያቄዎ ተልኳል። እስኪፀድቅ ይጠብቁ።');
+            } else {
+                alert('ጥያቄ መላክ አልተሳካም።');
+            }
+        }
+        
+        async function loadUsers() {
+            if (currentUser.role !== 'admin') {
+                document.getElementById('content').innerHTML = '<div class="form-container">⛔ ፈቃድ የለዎትም</div>';
+                return;
+            }
+            const res = await fetchAPI('/api/users');
+            const users = await res.json();
+            document.getElementById('content').innerHTML = `
+                <div class="form-container"><h3>➕ አዲስ ሰራተኛ መዝግብ</h3>
+                    <div class="form-group"><label>ሙሉ ስም</label><input type="text" id="empName"></div>
+                    <div class="form-group"><label>ስልክ ቁጥር</label><input type="text" id="empPhone"></div>
+                    <div class="form-group"><label>ሚና / ስራ ዘርፍ</label>
+                        <select id="empRole">
+                            <option value="sales">የሽያጭ ሰራተኛ</option>
+                            <option value="warehouse">የዕቃ ቤት ሰራተኛ</option>
+                            <option value="accountant">የሂሳብ ሰራተኛ</option>
+                            <option value="admin">አስተዳዳሪ</option>
+                        </select>
+                    </div>
+                    <button class="btn-primary" onclick="addUser()">ሰራተኛ መዝግብ</button>
+                    <p style="margin-top:10px; color:#2a5298;">💡 ሲመዘገብ ስርዓቱ በራሱ የተጠቃሚ ስም፣ ጊዜያዊ የይለፍ ቃል እና አጭር ኮድ ይሰጠዋል።</p>
+                </div>
+                <div class="data-table"><h3>👨‍💼 የተመዘገቡ ሰራተኞች</h3>
+                <table><thead><tr><th>ሙሉ ስም</th><th>የተጠቃሚ ስም</th><th>አጭር ኮድ</th><th>ሚና</th><th>ሁኔታ</th><th>ድርጊት</th></tr></thead>
+                <tbody>${users.map(u => `
+                    <tr>
+                        <td>${u.full_name}</td>
+                        <td>${u.username}</td>
+                        <td>${u.short_code || '-'}</td>
+                        <td>${u.role === 'admin' ? 'አስተዳዳሪ' : (u.role === 'sales' ? 'ሻጭ' : (u.role === 'warehouse' ? 'ዕቃ ቤት' : 'ሂሳብ'))}</td>
+                        <td>${u.is_active ? '✅ ንቁ' : '❌ ተቋርጧል'}</td>
+                        <td>${u.is_active ? `<button class="btn-danger" onclick="deleteUser(${u.id})">አግድ</button>` : '-'}</td>
+                    </tr>
+                `).join('')}</tbody></table></div>
+            `;
+        }
+        
+        async function addUser() {
+            const name = document.getElementById('empName').value;
+            if(!name) return alert('ሙሉ ስም ያስገቡ');
+            
+            const role = document.getElementById('empRole').value;
+            const phone = document.getElementById('empPhone').value;
+            
+            const res = await fetchAPI('/api/users', {
+                method: 'POST',
+                body: JSON.stringify({ full_name: name, role: role, employee_type: role, phone: phone })
+            });
+            if(res.ok) {
+                const data = await res.json();
+                alert(`ሰራተኛው ተመዝግቧል!\n\nየተጠቃሚ ስም፡ ${data.username}\nጊዜያዊ የይለፍ ቃል፡ ${data.temp_password}\nአጭር ኮድ፡ ${data.short_code}\n\nእባክዎ ይህን መረጃ ለሰራተኛው ያስረክቡ።`);
+                loadUsers();
+            } else {
+                const err = await res.json();
+                alert(err.error);
+            }
+        }
+        
+        async function deleteUser(id) {
+            if(confirm('ሰራተኛውን ማገድ ይፈልጋሉ?')) {
+                await fetchAPI(`/api/users/${id}`, { method: 'DELETE' });
+                loadUsers();
+            }
+        }
+        
+        async function loadVehicles() {
+            if (currentUser.role !== 'admin') {
+                document.getElementById('content').innerHTML = '<div class="form-container">⛔ ፈቃድ የለዎትም</div>';
+                return;
+            }
+            const vehicles = await fetchAPI('/api/vehicles').then(r=>r.json());
+            const drivers = await fetchAPI('/api/users').then(r=>r.json()).then(u => u.filter(x => x.role === 'sales' || x.employee_type === 'sales'));
+            
+            document.getElementById('content').innerHTML = `
+                <div class="form-container"><h3>🚛 አዲስ መኪና መዝግብ</h3>
+                    <div class="form-group"><label>የመኪና ስም / ሞዴል</label><input type="text" id="vehName"></div>
+                    <div class="form-group"><label>የሰሌዳ ቁጥር</label><input type="text" id="vehPlate"></div>
+                    <div class="form-group"><label>የተመደበለት ሹፌር (አማራጭ)</label>
+                        <select id="vehDriver"><option value="">-- ሹፌር አልተመደበም --</option>${drivers.map(d => `<option value="${d.id}">${d.full_name} (${d.short_code || d.username})</option>`).join('')}</select>
+                    </div>
+                    <button class="btn-primary" onclick="addVehicle()">መኪና መዝግብ</button>
+                </div>
+                <div class="data-table"><h3>🚛 የተመዘገቡ መኪኖች</h3>
+                <table><thead><tr><th>ስም</th><th>የሰሌዳ ቁጥር</th><th>አጭር ኮድ</th><th>ሹፌር</th></tr></thead>
+                <tbody>${vehicles.map(v => `
+                    <tr>
+                        <td>${v.name}</td>
+                        <td>${v.plate_number || '-'}</td>
+                        <td>${v.short_code}</td>
+                        <td>${v.driver_name || 'አልተመደበም'}</td>
+                    </tr>
+                `).join('')}</tbody></table></div>
+            `;
+        }
+        
+        async function addVehicle() {
+            const name = document.getElementById('vehName').value;
+            if(!name) return alert('የመኪና ስም ያስገቡ');
+            const plate = document.getElementById('vehPlate').value;
+            const driver = document.getElementById('vehDriver').value;
+            
+            const res = await fetchAPI('/api/vehicles', {
+                method: 'POST',
+                body: JSON.stringify({ name, plate_number: plate, assigned_driver_id: driver || null })
+            });
+            if(res.ok) {
+                const data = await res.json();
+                alert(`መኪናዋ ተመዝግባለች! አጭር ኮድ፡ ${data.short_code}`);
+                loadVehicles();
+            }
+        }
+        
+        async function loadStockMovements() {
+            const products = await fetchAPI('/api/products').then(r=>r.json());
+            const users = await fetchAPI('/api/users').then(r=>r.json()).then(u => u.filter(x => x.role === 'sales' && x.is_active));
+            const pending = await fetchAPI('/api/stock-movements/pending').then(r=>r.json());
+            
+            document.getElementById('content').innerHTML = `
+                <div class="form-container"><h3>📤 ለሻጭ እቃ አስረክብ</h3>
+                    <div class="form-group"><label>ምርት</label>
+                        <select id="stockProduct">${products.map(p => `<option value="${p.id}" data-stock="${p.current_stock}">${p.name} (በክምችት፡ ${p.current_stock})</option>`).join('')}</select>
+                    </div>
+                    <div class="form-group"><label>ተረካቢ ሻጭ</label>
+                        <select id="stockReceiver">${users.map(u => `<option value="${u.id}">${u.full_name} (${u.short_code || u.username})</option>`).join('')}</select>
+                    </div>
+                    <div class="form-group"><label>ብዛት</label><input type="number" id="stockQty" min="1"></div>
+                    <div class="form-group"><label>ማስታወሻ</label><input type="text" id="stockNote"></div>
+                    <button class="btn-primary" onclick="transferStock()">እቃ አስረክብ</button>
+                </div>
+                <div class="data-table"><h3>📥 ለእርስዎ የመጡ እቃዎች (ማረጋገጫ የሚጠብቁ)</h3>
+                <table><thead><tr><th>ምርት</th><th>ከማን</th><th>ብዛት</th><th>ቀን</th><th>ድርጊት</th></tr></thead>
+                <tbody>${pending.map(m => `
+                    <tr>
+                        <td>${m.product_name}</td>
+                        <td>${m.from_user_name}</td>
+                        <td>${m.quantity}</td>
+                        <td>${new Date(m.movement_date).toLocaleString()}</td>
+                        <td><button class="btn-success" onclick="confirmReceipt(${m.id})">ተረክቤያለሁ</button></td>
+                    </tr>
+                `).join('')}</tbody></table></div>
+            `;
+        }
+        
+        async function transferStock() {
+            const product = document.getElementById('stockProduct');
+            const receiver = document.getElementById('stockReceiver').value;
+            const qty = document.getElementById('stockQty').value;
+            
+            if(!product.value || !receiver || !qty) return alert('ሁሉንም መረጃ ያስገቡ');
+            
+            const stock = parseFloat(product.options[product.selectedIndex].dataset.stock);
+            if(parseFloat(qty) > stock) return alert('በቂ ክምችት የለም!');
+            
+            const res = await fetchAPI('/api/stock-movements', {
+                method: 'POST',
+                body: JSON.stringify({ product_id: product.value, to_user_id: receiver, quantity: parseFloat(qty), notes: document.getElementById('stockNote').value })
+            });
+            if(res.ok) { alert('እቃው ተልኳል!'); loadStockMovements(); }
+            else { alert('መላክ አልተሳካም'); }
+        }
+        
+        async function confirmReceipt(id) {
+            await fetchAPI(`/api/stock-movements/${id}/confirm`, { method: 'POST' });
+            loadStockMovements();
+        }
+        
+        async function loadReturns() {
+            const returns = await fetchAPI('/api/sale-returns/pending').then(r=>r.json());
+            document.getElementById('content').innerHTML = `
+                <div class="data-table"><h3>🔄 በመጠባበቅ ላይ ያሉ ተመላሽ እቃዎች</h3>
+                <table><thead><tr><th>ደረሰኝ ቁጥር</th><th>የመለሰው ሰው</th><th>የተመለሰበት ቀን</th><th>ድርጊት</th></tr></thead>
+                <tbody>${returns.map(r => `
+                    <tr>
+                        <td>${r.invoice_number}</td>
+                        <td>${r.returned_by_name}</td>
+                        <td>${new Date(r.return_date).toLocaleString()}</td>
+                        <td><button class="btn-success" onclick="confirmReturn(${r.id})">መልስ ተቀበል</button></td>
+                    </tr>
+                `).join('')}</tbody></table></div>
+            `;
+        }
+        
+        async function confirmReturn(id) {
+            await fetchAPI(`/api/sale-returns/${id}/confirm`, { method: 'POST' });
+            loadReturns();
+        }
+        
+        async function loadFuelLogs() {
+            const vehicles = await fetchAPI('/api/vehicles').then(r=>r.json());
+            const drivers = await fetchAPI('/api/users').then(r=>r.json()).then(u => u.filter(x => x.role === 'sales' && x.is_active));
+            const logs = await fetchAPI('/api/fuel-logs').then(r=>r.json());
+            
+            document.getElementById('content').innerHTML = `
+                <div class="form-container"><h3>⛽ ነዳጅ ስጥ</h3>
+                    <div class="form-group"><label>መኪና</label>
+                        <select id="fuelVehicle">${vehicles.map(v => `<option value="${v.id}">${v.name} (${v.short_code})</option>`).join('')}</select>
+                    </div>
+                    <div class="form-group"><label>ለማን ተሰጠ?</label>
+                        <select id="fuelReceiver">${drivers.map(d => `<option value="${d.id}">${d.full_name}</option>`).join('')}</select>
+                    </div>
+                    <div class="form-group"><label>በሊትር ብዛት</label><input type="number" id="fuelQty" step="0.01"></div>
+                    <div class="form-group"><label>ማስታወሻ</label><input type="text" id="fuelNote"></div>
+                    <button class="btn-primary" onclick="giveFuel()">ነዳጅ መዝግብ</button>
+                </div>
+                <div class="data-table"><h3>⛽ የነዳጅ አሰጣጥ ታሪክ</h3>
+                <table><thead><tr><th>መኪና</th><th>የተሰጠው ሰው</th><th>ብዛት (ሊትር)</th><th>የሰጠው ሰው</th><th>ቀን</th></tr></thead>
+                <tbody>${logs.map(l => `
+                    <tr>
+                        <td>${l.vehicle_name} (${l.short_code})</td>
+                        <td>${l.given_to_name}</td>
+                        <td>${l.quantity_liters} ሊትር</td>
+                        <td>${l.given_by_name}</td>
+                        <td>${new Date(l.log_date).toLocaleString()}</td>
+                    </tr>
+                `).join('')}</tbody></table></div>
+            `;
+        }
+        
+        async function giveFuel() {
+            const vehicle = document.getElementById('fuelVehicle').value;
+            const receiver = document.getElementById('fuelReceiver').value;
+            const qty = document.getElementById('fuelQty').value;
+            if(!vehicle || !receiver || !qty) return alert('ሁሉንም መረጃ ያስገቡ');
+            
+            await fetchAPI('/api/fuel-logs', {
+                method: 'POST',
+                body: JSON.stringify({ vehicle_id: vehicle, given_to: receiver, quantity_liters: parseFloat(qty), notes: document.getElementById('fuelNote').value })
+            });
+            alert('ነዳጅ ተመዝግቧል!');
+            loadFuelLogs();
+        }
+        
+        async function loadExpenses() {
+            const vehicles = await fetchAPI('/api/vehicles').then(r=>r.json());
+            const expenses = await fetchAPI('/api/expenses').then(r=>r.json());
+            
+            document.getElementById('content').innerHTML = `
+                <div class="form-container"><h3>💸 አዲስ ወጪ መዝግብ</h3>
+                    <div class="form-group"><label>ምድብ</label>
+                        <select id="expCategory">
+                            <option value="fuel">⛽ ነዳጅ (በጅምላ ግዢ)</option>
+                            <option value="maintenance">🔧 ጥገና</option>
+                            <option value="salary">💰 ደሞዝ</option>
+                            <option value="rent">🏠 ኪራይ</option>
+                            <option value="other">📋 ሌላ</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>ገንዘብ (ብር)</label><input type="number" id="expAmount"></div>
+                    <div class="form-group"><label>የትኛዋ መኪና? (አማራጭ)</label>
+                        <select id="expVehicle"><option value="">-- አይመለከትም --</option>${vehicles.map(v => `<option value="${v.id}">${v.name} (${v.short_code})</option>`).join('')}</select>
+                    </div>
+                    <div class="form-group"><label>ማብራሪያ</label><input type="text" id="expDesc"></div>
+                    <button class="btn-primary" onclick="addExpense()">ወጪ አስገባ</button>
+                </div>
+                <div class="data-table"><h3>📋 የወጪ ዝርዝር</h3>
+                <table><thead><tr><th>ምድብ</th><th>ገንዘብ</th><th>ማብራሪያ</th><th>ቀን</th></tr></thead>
+                <tbody>${expenses.map(e => `
+                    <tr>
+                        <td>${e.category === 'fuel' ? '⛽ ነዳጅ' : (e.category === 'maintenance' ? '🔧 ጥገና' : (e.category === 'salary' ? '💰 ደሞዝ' : (e.category === 'rent' ? '🏠 ኪራይ' : '📋 ሌላ')))}</td>
+                        <td>${e.amount} ብር</td>
+                        <td>${e.description || '-'}</td>
+                        <td>${e.expense_date}</td>
+                    </tr>
+                `).join('')}</tbody></table></div>
+            `;
+        }
+        
+        async function addExpense() {
+            const amount = document.getElementById('expAmount').value;
+            if (!amount) return alert('ገንዘብ ያስገቡ');
+            
+            await fetchAPI('/api/expenses', {
+                method: 'POST',
+                body: JSON.stringify({
+                    category: document.getElementById('expCategory').value,
+                    amount: parseFloat(amount),
+                    description: document.getElementById('expDesc').value,
+                    vehicle_id: document.getElementById('expVehicle').value || null
+                })
+            });
+            loadExpenses();
+        }
+        
+        async function loadPayments() {
+            const sales = await fetchAPI('/api/sales/pending-payment').then(r=>r.json());
+            document.getElementById('content').innerHTML = `
+                <div class="data-table"><h3>✅ ክፍያ የሚጠብቁ ሽያጮች</h3>
+                <table><thead><tr><th>ደረሰኝ ቁጥር</th><th>ደንበኛ</th><th>ጠቅላላ</th><th>የሸጠው ሰው</th><th>ቀን</th><th>ድርጊት</th></tr></thead>
+                <tbody>${sales.map(s => `
+                    <tr>
+                        <td>${s.invoice_number}</td>
+                        <td>${s.customer_name || 'የገንዘብ ግዢ'}</td>
+                        <td>${s.total} ብር</td>
+                        <td>${s.sales_person}</td>
+                        <td>${new Date(s.sale_date).toLocaleDateString()}</td>
+                        <td><button class="btn-success" onclick="confirmPayment(${s.id})">ክፍያ ተቀብያለሁ</button></td>
+                    </tr>
+                `).join('')}</tbody></table></div>
+            `;
+        }
+        
+        async function confirmPayment(id) {
+            await fetchAPI(`/api/sales/${id}/confirm-payment`, { method: 'POST' });
+            alert('ክፍያው ተረጋግጧል!');
+            loadPayments();
+        }
+        
+        async function loadEditRequests() {
+            const requests = await fetchAPI('/api/edit-requests/pending').then(r=>r.json());
+            document.getElementById('content').innerHTML = `
+                <div class="data-table"><h3>✏️ ውሳኔ የሚጠብቁ የማረሚያ ጥያቄዎች</h3>
+                <table><thead><tr><th>ደረሰኝ ቁጥር</th><th>ጠያቂ</th><th>የመጀመሪያ ድምር</th><th>አዲስ ድምር</th><th>ምክንያት</th><th>ድርጊት</th></tr></thead>
+                <tbody>${requests.map(r => `
+                    <tr>
+                        <td>${r.invoice_number}</td>
+                        <td>${r.requested_by_name}</td>
+                        <td>${r.original_total} ብር</td>
+                        <td>${r.new_total || r.original_total} ብር</td>
+                        <td>${r.request_reason}</td>
+                        <td class="action-buttons">
+                            <button class="btn-success" onclick="decideEdit(${r.id}, 'approved')">ፍቀድ</button>
+                            <button class="btn-danger" onclick="decideEdit(${r.id}, 'rejected')">ውድቅ አድርግ</button>
+                        </td>
+                    </tr>
+                `).join('')}</tbody></table></div>
+            `;
+        }
+        
+        async function decideEdit(id, decision) {
+            const reason = prompt('ውሳኔዎን ያብራሩ (ምክንያት)፡');
+            await fetchAPI(`/api/edit-requests/${id}/decision`, {
+                method: 'POST',
+                body: JSON.stringify({ decision, decision_reason: reason })
+            });
+            alert('ውሳኔዎ ተቀምጧል!');
+            loadEditRequests();
+        }
+        
+        async function loadDiscounts() {
+            const discounts = await fetchAPI('/api/discounts').then(r=>r.json());
+            document.getElementById('content').innerHTML = `
+                <div class="form-container"><h3>🏷️ አዲስ ቅናሽ ፍጠር</h3>
+                    <div class="form-group"><label>የቅናሹ ስም</label><input type="text" id="discName"></div>
+                    <div class="form-group"><label>የመቶኛ ቅናሽ (%)</label><input type="number" id="discPercent" step="0.01"></div>
+                    <div class="form-group"><label>ዝቅተኛ ብዛት (ካለ)</label><input type="number" id="discQty"></div>
+                    <div class="form-group"><label>ዝቅተኛ ጠቅላላ ዋጋ (ካለ)</label><input type="number" id="discTotal"></div>
+                    <button class="btn-primary" onclick="addDiscount()">ቅናሽ አስገባ</button>
+                </div>
+                <div class="data-table"><h3>🏷️ ንቁ ቅናሾች</h3>
+                <table><thead><tr><th>ስም</th><th>ቅናሽ %</th><th>ዝቅተኛ ብዛት</th><th>ዝቅተኛ ጠቅላላ</th></tr></thead>
+                <tbody>${discounts.map(d => `
+                    <tr>
+                        <td>${d.name}</td>
+                        <td>${d.discount_percent}%</td>
+                        <td>${d.min_quantity || '-'}</td>
+                        <td>${d.min_total ? d.min_total + ' ብር' : '-'}</td>
+                    </tr>
+                `).join('')}</tbody></table></div>
+            `;
+        }
+        
+        async function addDiscount() {
+            const name = document.getElementById('discName').value;
+            if(!name) return alert('ስም ያስገቡ');
+            await fetchAPI('/api/discounts', {
+                method: 'POST',
+                body: JSON.stringify({
+                    name,
+                    discount_percent: parseFloat(document.getElementById('discPercent').value) || 0,
+                    min_quantity: document.getElementById('discQty').value || null,
+                    min_total: document.getElementById('discTotal').value || null
+                })
+            });
+            loadDiscounts();
+        }
+        
+        async function loadReports() {
+            const salesReport = await fetchAPI('/api/reports/sales-by-user').then(r=>r.json());
+            const stockReport = await fetchAPI('/api/reports/stock-status').then(r=>r.json());
+            
+            document.getElementById('content').innerHTML = `
+                <div class="data-table"><h3>📊 የሽያጭ አፈጻጸም በሰራተኛ</h3>
+                <table><thead><tr><th>ሰራተኛ</th><th>አጭር ኮድ</th><th>ጠቅላላ ሽያጭ ብዛት</th><th>ጠቅላላ ገቢ</th></tr></thead>
+                <tbody>${salesReport.map(s => `
+                    <tr>
+                        <td>${s.full_name}</td>
+                        <td>${s.short_code || '-'}</td>
+                        <td>${s.total_sales}</td>
+                        <td>${s.total_amount.toLocaleString()} ብር</td>
+                    </tr>
+                `).join('')}</tbody></table></div>
+                
+                <div class="data-table" style="margin-top:25px;"><h3>📦 የአሁን ክምችት ሁኔታ</h3>
+                <table><thead><tr><th>ምርት</th><th>ዋጋ</th><th>አሁን ያለ ክምችት</th><th>አጠቃላይ የተሸጠ</th></tr></thead>
+                <tbody>${stockReport.map(s => `
+                    <tr>
+                        <td>${s.name}</td>
+                        <td>${s.selling_price} ብር</td>
+                        <td style="color:${s.current_stock <= 0 ? 'red' : 'green'}">${s.current_stock}</td>
+                        <td>${s.total_sold}</td>
+                    </tr>
+                `).join('')}</tbody></table></div>
+            `;
+        }
+        
+        checkAuth();
+    </script>
+</body>
+</html>
